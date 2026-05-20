@@ -1,0 +1,16 @@
+{
+  "name": "engine",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "redis": "^5.12.1",
+    "uuid": "^14.0.0"
+  }
+}

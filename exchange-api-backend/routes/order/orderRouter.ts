@@ -1,7 +1,7 @@
 import { Router } from "express";
-import RedisManager from "../redisManager";
-import { CREATE_ORDER } from "../types/types";
-import userAuth from "../auth/userAuth";
+import RedisManager from "../../redisManager";
+import { CREATE_ORDER } from "../../types/types";
+import userAuth from "../../auth/userAuth";
 
 const orderRouter = Router();
 
