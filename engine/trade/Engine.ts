@@ -1,5 +1,12 @@
 import RedisManager from "../RedisManager";
-import { CREATE_ORDER, type MessageFromApi } from "../types/from";
+import {
+  CANCEL_ORDER,
+  CREATE_ORDER,
+  GET_DEPTH,
+  GET_OPEN_ORDERS,
+  ON_RAMP,
+  type MessageFromApi,
+} from "../types/from";
 import { Orderbook, type Order } from "./Orderbook";
 import { v4 as uuid } from "uuid";
 
@@ -66,6 +73,59 @@ export default class Engine {
             },
           });
         }
+        break;
+
+      case CANCEL_ORDER:
+        break;
+
+      case GET_OPEN_ORDERS:
+        try {
+          // find the orderbook
+          const openOrderbook = this.orderbooks.find(
+            (o) => o.ticker() == message.data.market,
+          );
+
+          if (!openOrderbook) {
+            throw new Error("No orderbook found");
+          }
+
+          const openOrders = openOrderbook.getOpenOrders(message.data.userId);
+
+          RedisManager.getInstance().sendToApi(clientId, {
+            type: "OPEN_ORDERS",
+            payload: openOrders,
+          });
+        } catch (e) {
+          console.log(e);
+        }
+        break;
+      case ON_RAMP:
+        const userId = message.data.userId;
+        const amount = Number(message.data.amount);
+        this.onRamp(userId, amount, message.data.asset);
+        break;
+      case GET_DEPTH:
+        try {
+          const market = message.data.market;
+          const orderbook = this.orderbooks.find((o) => o.ticker() === market);
+          if (!orderbook) {
+            throw new Error("No orderbook found");
+          }
+          RedisManager.getInstance().sendToApi(clientId, {
+            type: "DEPTH",
+            payload: orderbook.getDepth(),
+          });
+        } catch (e) {
+          console.log(e);
+          RedisManager.getInstance().sendToApi(clientId, {
+            type: "DEPTH",
+            payload: {
+              bids: [],
+              asks: [],
+            },
+          });
+        }
+        break;
     }
   }
 
@@ -150,6 +210,24 @@ export default class Engine {
       }
       userBalance[baseAsset].available -= quantity * price;
       userBalance[baseAsset].locked += quantity * price;
+    }
+  }
+
+  onRamp(userId: string, amount: number, asset: string) {
+    const userBalance = this.balances.get(userId);
+    if (!userBalance) {
+      this.balances.set(userId, {
+        [asset]: {
+          available: amount,
+          locked: 0,
+        },
+      });
+    } else {
+      if (!userBalance[asset]) {
+        userBalance[asset] = { available: amount, locked: 0 };
+      } else {
+        userBalance[asset].available += amount;
+      }
     }
   }
 }

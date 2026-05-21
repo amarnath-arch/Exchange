@@ -170,4 +170,18 @@ export class Orderbook {
 
     return { executedQty, fills };
   }
+
+  getOpenOrders(userId: string) {
+    const asks = this.asks.filter((ask) => ask.userId == userId);
+    const bids = this.bids.filter((bid) => bid.userId == userId);
+
+    return [...asks, ...bids];
+  }
+
+  getDepth() {
+    const bids = this.bids;
+    const asks = this.asks;
+
+    return { bids, asks };
+  }
 }

@@ -1,3 +1,5 @@
+import type { Order } from "../trade/Orderbook";
+
 export type MessageToApi =
   | {
       type: "ORDER_PLACED";
@@ -17,5 +19,16 @@ export type MessageToApi =
         executedQty: number;
         remainingQty: number;
         orderId: string;
+      };
+    }
+  | {
+      type: "OPEN_ORDERS";
+      payload: Order[];
+    }
+  | {
+      type: "DEPTH";
+      payload: {
+        asks: Order[];
+        bids: Order[];
       };
     };
