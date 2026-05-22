@@ -11,6 +11,23 @@ import { BidTable } from "./BidTable";
 import { AskTable } from "./AskTable";
 import SocketManager from "@/app/utils/Socket";
 
+const applyOrderBookUpdates = (
+  original: [string, string][],
+  updates: [string, string][],
+): [string, string][] => {
+  const map = new Map(original ?? []);
+
+  for (const [price, qty] of updates) {
+    if (parseFloat(qty) === 0) {
+      map.delete(price);
+    } else {
+      map.set(price, qty);
+    }
+  }
+
+  return Array.from(map.entries());
+};
+
 export function Depth({ market }: { market: string }) {
   const [bids, setBids] = useState<[string, string][]>();
   const [asks, setAsks] = useState<[string, string][]>();
@@ -78,20 +95,3 @@ function TableHeader() {
     </div>
   );
 }
-
-const applyOrderBookUpdates = (
-  original: [string, string][],
-  updates: [string, string][],
-): [string, string][] => {
-  const map = new Map(original ?? []);
-
-  for (const [price, qty] of updates) {
-    if (parseFloat(qty) === 0) {
-      map.delete(price);
-    } else {
-      map.set(price, qty);
-    }
-  }
-
-  return Array.from(map.entries());
-};

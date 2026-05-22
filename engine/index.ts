@@ -9,7 +9,11 @@ const main = async () => {
   await client.connect();
 
   while (true) {
-    client.brPop("messages", 0);
+    const res = await client.rPop("messages" as string);
+    if (!res) {
+    } else {
+      engine.process(JSON.parse(res));
+    }
   }
 };
 

@@ -7,7 +7,8 @@ import {
   ON_RAMP,
   type MessageFromApi,
 } from "../types/from";
-import { Orderbook, type Order } from "./Orderbook";
+import { ORDER_UPDATE } from "../types/to";
+import { Orderbook, type Fill, type Order } from "./Orderbook";
 import { v4 as uuid } from "uuid";
 
 interface UserBalance {
@@ -166,14 +167,89 @@ export default class Engine {
     };
 
     // match the order
-    const { executedQty, fills } = orderbook.addOrder(order);
+    const { executedQty, fills, deletedAsks, deletedBids } =
+      orderbook.addOrder(order);
+
+    this.updateBalance(userId, side, fills, quoteAsset!, baseAsset!); // updated the balance
+    // now I have to put in a queue for db to pull the things and publish the things for the socket
+    this.createDbTrades(fills, market, userId);
+    this.updateDbOrders(order, executedQty, fills, market);
+    this.publisWsDepthUpdates(
+      fills,
+      price,
+      side,
+      market,
+      deletedBids,
+      deletedAsks,
+    );
+    this.publishWsTrades(fills, userId, market);
 
     const orderId = order.orderId;
 
     return { executedQty, fills, orderId };
   }
 
-  checkAndLockFunds(
+  private updateBalance(
+    userId: string,
+    side: "buy" | "sell",
+    fills: Fill[],
+    quoteAsset: string,
+    baseAsset: string,
+  ) {
+    const userBalance = this.balances.get(userId);
+    if (!userBalance) {
+      throw new Error("User Balance not found ");
+    }
+    if (side == "buy") {
+      // order was buy order so someone was selling and I have the decrease the base asset of the other user
+      fills.forEach((fill) => {
+        const otherUserId = this.balances.get(fill.otherUserId);
+        if (!otherUserId) {
+          throw new Error("Other userId Balance not found");
+        }
+
+        if (
+          !otherUserId[baseAsset] ||
+          !otherUserId[quoteAsset] ||
+          !userBalance[quoteAsset] ||
+          !userBalance[baseAsset]
+        ) {
+          throw new Error("No base Asset in other user id");
+        }
+
+        otherUserId[baseAsset].locked -= fill.quantity;
+        otherUserId[quoteAsset].available += fill.quantity * fill.price;
+
+        userBalance[quoteAsset].locked -= fill.quantity * fill.price;
+        userBalance[baseAsset].available += fill.quantity;
+      });
+    } else {
+      // order was sell order so there are buy orders in the market which I am going to consume
+      fills.forEach((fill) => {
+        const otherUserId = this.balances.get(fill.otherUserId);
+        if (!otherUserId) {
+          throw new Error("Other userId Balance not found");
+        }
+
+        if (
+          !otherUserId[baseAsset] ||
+          !otherUserId[quoteAsset] ||
+          !userBalance[quoteAsset] ||
+          !userBalance[baseAsset]
+        ) {
+          throw new Error("No base Asset in other user id");
+        }
+
+        otherUserId[baseAsset].available += fill.quantity;
+        otherUserId[quoteAsset].locked -= fill.quantity * fill.price;
+
+        userBalance[quoteAsset].available += fill.quantity * fill.price;
+        userBalance[baseAsset].locked -= fill.quantity;
+      });
+    }
+  }
+
+  private checkAndLockFunds(
     side: "buy" | "sell",
     quoteAsset: string,
     baseAsset: string,
@@ -213,7 +289,7 @@ export default class Engine {
     }
   }
 
-  onRamp(userId: string, amount: number, asset: string) {
+  private onRamp(userId: string, amount: number, asset: string) {
     const userBalance = this.balances.get(userId);
     if (!userBalance) {
       this.balances.set(userId, {
@@ -228,6 +304,142 @@ export default class Engine {
       } else {
         userBalance[asset].available += amount;
       }
+    }
+  }
+
+  private updateDbOrders(
+    order: Order,
+    executedQty: number,
+    fills: Fill[],
+    market: string,
+  ) {
+    RedisManager.getInstance().pushMessage({
+      type: ORDER_UPDATE,
+      data: {
+        orderId: order.orderId,
+        executedQty: executedQty,
+        market: market,
+        price: order.price.toString(),
+        quantity: order.quantity.toString(),
+        side: order.side,
+      },
+    });
+
+    fills.forEach((fill) => {
+      RedisManager.getInstance().pushMessage({
+        type: ORDER_UPDATE,
+        data: {
+          orderId: fill.makerOrderId,
+          executedQty: fill.quantity,
+        },
+      });
+    });
+  }
+
+  private createDbTrades(fills: Fill[], market: string, userId: string) {
+    // NEED to make the changes  accordingly TODO://
+
+    fills.forEach((fill) => {
+      RedisManager.getInstance().pushMessage({
+        type: "TRADE_ADDED",
+        data: {
+          market: market,
+          id: fill.tradeId.toString(),
+          isBuyerMaker: fill.otherUserId == userId,
+          price: fill.price.toString(),
+          quantity: fill.quantity.toString(),
+          quoteQuantity: (fill.quantity * fill.price).toString(),
+          timestamp: Date.now(),
+        },
+      });
+    });
+  }
+  private publishWsTrades(fills: Fill[], userId: string, market: string) {
+    fills.forEach((fill) => {
+      RedisManager.getInstance().publishMessage(`trade@${market}`, {
+        stream: `trade@${market}`,
+        data: {
+          e: "trade",
+          t: fill.tradeId,
+          m: fill.otherUserId === userId, // TODO: Is this right?
+          p: fill.price.toString(),
+          q: fill.quantity.toString(),
+          s: market,
+        },
+      });
+    });
+  }
+
+  //// pub sub
+
+  private publisWsDepthUpdates(
+    fills: Fill[],
+    price: string,
+    side: "buy" | "sell",
+    market: string,
+    deletedBids: Set<number>,
+    deletedAsks: Set<number>,
+  ) {
+    const orderbook = this.orderbooks.find((o) => o.ticker() === market);
+    if (!orderbook) {
+      return;
+    }
+    const depth = orderbook.getDepth();
+    if (side === "buy") {
+      let updatedAsks = depth?.asks.filter((x) => {
+        return fills.map((f) => f.price).includes(x[0]);
+      });
+
+      [...deletedAsks.entries()].forEach(([askPrice]) => {
+        const includes = updatedAsks.map((x) => x[0]).includes(askPrice);
+        if (!includes) {
+          updatedAsks.push([askPrice, 0]);
+        }
+      });
+
+      const updatedBid = depth?.bids.find((x) => x[0].toString() === price);
+      console.log("publish ws depth updates");
+      RedisManager.getInstance().publishMessage(`depth@${market}`, {
+        stream: `depth@${market}`,
+        data: {
+          a: updatedAsks.map((asks) => [
+            asks[0].toString(),
+            asks[1].toString(),
+          ]),
+          b: updatedBid
+            ? [updatedBid].map((bid) => [bid[0].toString(), bid[1].toString()])
+            : [],
+          e: "depth",
+        },
+      });
+    }
+    if (side === "sell") {
+      const updatedBids = depth?.bids.filter((x) =>
+        fills.map((f) => f.price).includes(x[0]),
+      );
+
+      [...deletedBids.entries()].forEach(([bidPrice]) => {
+        const includes = updatedBids.map((x) => x[0]).includes(bidPrice);
+        if (!includes) {
+          updatedBids.push([bidPrice, 0]);
+        }
+      });
+
+      const updatedAsk = depth?.asks.find((x) => x[0].toString() === price);
+      console.log("publish ws depth updates");
+      RedisManager.getInstance().publishMessage(`depth@${market}`, {
+        stream: `depth@${market}`,
+        data: {
+          a: updatedAsk
+            ? [updatedAsk].map((ask) => [ask[0].toString(), ask[1].toString()])
+            : [],
+          b: updatedBids.map((bids) => [
+            bids[0].toString(),
+            bids[1].toString(),
+          ]),
+          e: "depth",
+        },
+      });
     }
   }
 }

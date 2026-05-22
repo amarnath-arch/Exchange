@@ -23,6 +23,9 @@ export class Orderbook {
   baseAsset: string;
   lastTradeId: number;
 
+  deletedBidPrices: Set<number>;
+  deletedAskPrices: Set<number>;
+
   constructor(
     bids: Order[],
     asks: Order[],
@@ -35,6 +38,8 @@ export class Orderbook {
     this.quoteAsset = quoteAsset;
     this.baseAsset = baseAsset;
     this.lastTradeId = lastTradeId || 0;
+    this.deletedAskPrices = new Set<number>();
+    this.deletedBidPrices = new Set<number>();
   }
 
   ticker() {
@@ -46,25 +51,44 @@ export class Orderbook {
       const { executedQty, fills } = this.matchBid(order);
       order.filled = executedQty;
 
+      const deletedAsks = new Set(this.deletedAskPrices);
+      const deletedBids = new Set(this.deletedBidPrices);
+
+      this.deletedAskPrices.clear();
+      this.deletedBidPrices.clear();
+
       if (order.quantity == executedQty) {
         return {
           executedQty,
           fills,
+          deletedBids,
+          deletedAsks,
         };
       }
 
       this.bids.push(order);
+
       return {
         executedQty,
         fills,
+        deletedBids,
+        deletedAsks,
       };
     } else {
       const { executedQty, fills } = this.matchAsk(order);
       order.filled = executedQty;
+      const deletedAsks = new Set(this.deletedAskPrices);
+      const deletedBids = new Set(this.deletedBidPrices);
+
+      this.deletedAskPrices.clear();
+      this.deletedBidPrices.clear();
+
       if (order.quantity == executedQty) {
         return {
           executedQty,
           fills,
+          deletedBids,
+          deletedAsks,
         };
       }
 
@@ -72,6 +96,8 @@ export class Orderbook {
       return {
         executedQty,
         fills,
+        deletedBids,
+        deletedAsks,
       };
     }
   }
@@ -102,6 +128,7 @@ export class Orderbook {
         executedQty += filledQty;
 
         if (sortedBids[i]!.quantity == sortedBids[i]!.filled) {
+          this.deletedBidPrices.add(sortedBids[i]!.price);
           filledCounter = i;
         }
 
@@ -151,6 +178,7 @@ export class Orderbook {
         sortedAsks[i]!.filled += filledQty;
 
         if (sortedAsks[i]!.filled == sortedAsks[i]!.quantity) {
+          this.deletedAskPrices.add(sortedAsks[i]!.price);
           filledCounter = i;
         }
 
@@ -179,9 +207,31 @@ export class Orderbook {
   }
 
   getDepth() {
-    const bids = this.bids;
-    const asks = this.asks;
+    const aggregatedBids: [number, number][] = Object.values(
+      this.bids.reduce<Record<number, Order>>((acc, order) => {
+        if (acc[order.price]) {
+          acc[order.price]!.quantity += order.quantity;
+        } else {
+          acc[order.price] = { ...order };
+        }
+        return acc;
+      }, {}),
+    ).map(({ price, quantity }) => [price, quantity]);
 
-    return { bids, asks };
+    const aggregatedAsks: [number, number][] = Object.values(
+      this.asks.reduce<Record<number, Order>>((acc, order) => {
+        if (acc[order.price]) {
+          acc[order.price]!.quantity += order.quantity;
+        } else {
+          acc[order.price] = { ...order };
+        }
+        return acc;
+      }, {}),
+    ).map(({ price, quantity }) => [price, quantity]);
+
+    return {
+      bids: aggregatedBids,
+      asks: aggregatedAsks,
+    };
   }
 }

@@ -1,6 +1,7 @@
 import type { RedisClientType } from "@redis/client";
 import { createClient } from "redis";
-import type { MessageToApi } from "./types/to";
+import type { DbMessage, MessageToApi } from "./types/to";
+import type { WsMessage } from "./types/toWs";
 
 export default class RedisManager {
   private static instance: RedisManager;
@@ -20,5 +21,13 @@ export default class RedisManager {
 
   async sendToApi(clientId: string, message: MessageToApi) {
     await this.client.publish(clientId, JSON.stringify(message));
+  }
+
+  async pushMessage(message: DbMessage) {
+    await this.client.lPush("db_processor", JSON.stringify(message));
+  }
+
+  async publishMessage(channel: string, message: WsMessage) {
+    await this.client.publish(channel, JSON.stringify(message));
   }
 }
