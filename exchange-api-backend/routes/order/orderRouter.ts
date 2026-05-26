@@ -1,6 +1,6 @@
 import { Router } from "express";
 import RedisManager from "../../redisManager";
-import { CREATE_ORDER } from "../../types/types";
+import { CREATE_ORDER, GET_OPEN_ORDERS } from "../../types/types";
 import userAuth from "../../auth/userAuth";
 
 const orderRouter = Router();
@@ -28,6 +28,24 @@ orderRouter.post("/", userAuth, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({
+      error: err,
+    });
+  }
+});
+
+orderRouter.get("/open", userAuth, async (req, res) => {
+  try {
+    const response = await RedisManager.getInstance().sendAndAwait({
+      type: GET_OPEN_ORDERS,
+      data: {
+        userId: req.userId as string,
+        market: req.query.market as string,
+      },
+    });
+    return res.json(response.payload);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({
       error: err,
     });
   }
