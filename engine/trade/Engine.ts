@@ -172,7 +172,7 @@ export default class Engine {
 
     this.updateBalance(userId, side, fills, quoteAsset!, baseAsset!); // updated the balance
     // now I have to put in a queue for db to pull the things and publish the things for the socket
-    this.createDbTrades(fills, market, userId);
+    this.createDbTrades(fills, market, userId, order.orderId);
     this.updateDbOrders(order, executedQty, fills, market);
     this.publisWsDepthUpdates(
       fills,
@@ -317,11 +317,13 @@ export default class Engine {
       type: ORDER_UPDATE,
       data: {
         orderId: order.orderId,
+        userId: order.userId,
         executedQty: executedQty,
         market: market,
         price: order.price.toString(),
         quantity: order.quantity.toString(),
         side: order.side,
+        timestamp: Date.now(),
       },
     });
 
@@ -336,7 +338,12 @@ export default class Engine {
     });
   }
 
-  private createDbTrades(fills: Fill[], market: string, userId: string) {
+  private createDbTrades(
+    fills: Fill[],
+    market: string,
+    userId: string,
+    orderId: string,
+  ) {
     // NEED to make the changes  accordingly TODO://
 
     fills.forEach((fill) => {
@@ -346,6 +353,8 @@ export default class Engine {
           market: market,
           id: fill.tradeId.toString(),
           isBuyerMaker: fill.otherUserId == userId,
+          makerOrderId: fill.makerOrderId,
+          takerOrderId: orderId,
           price: fill.price.toString(),
           quantity: fill.quantity.toString(),
           quoteQuantity: (fill.quantity * fill.price).toString(),

@@ -9,6 +9,8 @@ export type DbMessage =
       data: {
         id: string;
         isBuyerMaker: boolean;
+        makerOrderId: string;
+        takerOrderId: string;
         price: string;
         quantity: string;
         quoteQuantity: string;
@@ -25,6 +27,8 @@ export type DbMessage =
         price?: string;
         quantity?: string;
         side?: "buy" | "sell";
+        timestamp?: number;
+        userId?: string;
       };
     };
 
