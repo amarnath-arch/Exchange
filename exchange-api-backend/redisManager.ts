@@ -1,7 +1,7 @@
 import { RedisClient } from "bun";
 import { createClient, type RedisClientType } from "redis";
 import { v4 as uuid } from "uuid";
-import type { MessageToEngine } from "./types/types";
+import type { MessageFromOrderbook, MessageToEngine } from "./types/types";
 
 export default class RedisManager {
   private static instance: RedisManager;
@@ -23,17 +23,25 @@ export default class RedisManager {
     return this.instance;
   }
 
-  public async sendAndAwait(message: MessageToEngine) {
+  public async sendAndAwait(
+    message: MessageToEngine,
+  ): Promise<MessageFromOrderbook> {
     const id = uuid();
 
     // listen from teh publisher TODO://
 
-    this.client.lPush(
-      "messages",
-      JSON.stringify({
-        clientId: id,
-        message,
+    return new Promise<MessageFromOrderbook>((resolve) => {
+      (this.publisher.subscribe(id, (message: any) => {
+        this.publisher.unsubscribe(id);
+        resolve(message);
       }),
-    );
+        this.client.lPush(
+          "messages",
+          JSON.stringify({
+            clientId: id,
+            message,
+          }),
+        ));
+    });
   }
 }
