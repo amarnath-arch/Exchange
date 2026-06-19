@@ -1,6 +1,12 @@
 import { Ticker } from "./types";
 
-export const BASE_SOCKET_URL = "wss://ws.backpack.exchange/";
+// export const BASE_SOCKET_URL = "wss://ws.backpack.exchange/";
+export const BASE_SOCKET_URL = "ws://localhost:8080/";
+
+interface Callback {
+  comp: string;
+  callback: any;
+}
 
 export default class SocketManager {
   private static instance: SocketManager;
@@ -8,13 +14,13 @@ export default class SocketManager {
   private bufferedMessages: any[] = [];
   private id: number;
   private initialized: boolean = false;
-  private callbacks: Map<string, Map<string, any>>;
+  private callbacks: Map<string, Map<string, Callback[]>>;
 
   private constructor() {
     this.socket = new WebSocket(BASE_SOCKET_URL);
     this.bufferedMessages = [];
     this.id = 1;
-    this.callbacks = new Map<string, Map<string, any>>();
+    this.callbacks = new Map<string, Map<string, Callback[]>>();
     this.init();
   }
 
@@ -40,8 +46,12 @@ export default class SocketManager {
       const type = message.data.e;
       const id = message.data.s;
 
-      if (this.callbacks.get(type) && this.callbacks.get(type)?.get(id)) {
-        const callback = this.callbacks.get(type)?.get(id);
+      if (this.callbacks.has(type) && this.callbacks.get(type)?.has(id)) {
+        const callbackArr = this.callbacks.get(type)?.get(id);
+
+        if (!callbackArr) {
+          return;
+        }
 
         if (type == "ticker") {
           const newTicker: Partial<Ticker> = {
@@ -54,12 +64,26 @@ export default class SocketManager {
           };
 
           console.log("new tikcer is : ", message.data);
+          console.log("callbackArr is : ", callbackArr);
 
-          callback(newTicker);
+          for (const cb of callbackArr) {
+            cb.callback(newTicker);
+          }
+          // callback(newTicker);
         } else if (type == "depth") {
           const updatedBids = message.data.b;
           const updatedAsks = message.data.a;
-          callback({ bids: updatedBids, asks: updatedAsks });
+          console.log("updated bids ", updatedAsks);
+          console.log("updated asks", updatedBids);
+          console.log("callbackARr for depth: ", callbackArr);
+          for (const cb of callbackArr) {
+            cb.callback({ bids: updatedBids, asks: updatedAsks });
+          }
+          // callback({ bids: updatedBids, asks: updatedAsks });
+        } else if (type == "kline") {
+          for (const cb of callbackArr) {
+            cb.callback(message.data);
+          }
         }
       }
     };
@@ -75,20 +99,54 @@ export default class SocketManager {
     this.socket.send(JSON.stringify({ ...message, id: this.id++ }));
   }
 
-  async registerCallback(type: string, callback: any, id: string) {
+  async registerCallback(
+    type: string,
+    callback: any,
+    id: string,
+    component: string,
+  ) {
     if (!this.callbacks.has(type)) {
-      this.callbacks.set(type, new Map<string, any>());
+      this.callbacks.set(type, new Map<string, Callback[]>());
     }
 
-    this.callbacks.get(type)?.set(id, callback);
+    const callbacks = this.callbacks.get(type);
+
+    if (!callbacks?.has(id)) {
+      callbacks?.set(id, []);
+    }
+
+    const callbacksArr = callbacks?.get(id);
+
+    callbacksArr?.push({
+      comp: component,
+      callback: callback,
+    });
   }
 
-  async deregisterCallback(type: string, id: string) {
+  async deregisterCallback(type: string, id: string, component: string) {
     if (!this.callbacks.has(type) || !this.callbacks.get(type)?.has(id)) {
       return;
     }
 
-    this.callbacks.get(type)?.delete(id);
+    if (this.callbacks.get(type)?.get(id)?.length == 0) {
+      return;
+    }
+
+    const callbackArr = this.callbacks.get(type)?.get(id);
+
+    if (!callbackArr) {
+      return;
+    }
+
+    for (let i = 0; i < callbackArr.length; ++i) {
+      if (callbackArr[i].comp == component) {
+        callbackArr.splice(i, 1);
+      }
+    }
+
+    if (callbackArr.length == 0) {
+      this.callbacks.get(type)?.delete(id);
+    }
 
     if (this.callbacks.get(type)?.size === 0) {
       this.callbacks.delete(type);

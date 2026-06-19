@@ -4,7 +4,20 @@ export const ON_RAMP = "ON_RAMP";
 export const GET_OPEN_ORDERS = "GET_OPEN_ORDERS";
 
 export const GET_DEPTH = "GET_DEPTH";
+export const GET_TICKER = "GET_TICKER";
 
+export interface KLine {
+  close: string;
+  end: string;
+  high: string;
+  low: string;
+  open: string;
+  quoteVolume: string;
+  start: string;
+  symbol: string;
+  trades: string;
+  volume: string;
+}
 export type MessageToEngine =
   | {
       type: typeof CREATE_ORDER;
@@ -29,10 +42,17 @@ export type MessageToEngine =
         amount: string;
         userId: string;
         txnId: string;
+        asset: string;
       };
     }
   | {
       type: typeof GET_DEPTH;
+      data: {
+        market: string;
+      };
+    }
+  | {
+      type: typeof GET_TICKER;
       data: {
         market: string;
       };
@@ -52,6 +72,30 @@ export type MessageFromOrderbook =
         market: string;
         bids: [string, string][];
         asks: [string, string][];
+      };
+    }
+  | {
+      type: "TICKER";
+      payload: {
+        firstPrice: string;
+        high: string;
+        lastPrice: string;
+        low: string;
+        priceChange: string;
+        priceChangePercent: string;
+        quoteVolume: string;
+        symbol: string;
+        trades: string;
+        volume: string;
+        updateTimestamp: number;
+      };
+    }
+  | {
+      type: "ON_RAMP";
+      payload: {
+        userId: string;
+        amount: number;
+        asset: string;
       };
     }
   | {

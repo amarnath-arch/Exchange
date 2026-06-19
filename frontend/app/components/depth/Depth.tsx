@@ -10,12 +10,16 @@ import {
 import { BidTable } from "./BidTable";
 import { AskTable } from "./AskTable";
 import SocketManager from "@/app/utils/Socket";
+import { Ticker } from "@/app/utils/types";
 
 const applyOrderBookUpdates = (
   original: [string, string][],
   updates: [string, string][],
+  side: string,
 ): [string, string][] => {
-  const map = new Map(original ?? []);
+  const map = new Map<string, string>(
+    (original ?? []).map(([price, qty]) => [String(price), String(qty)]),
+  );
 
   for (const [price, qty] of updates) {
     if (parseFloat(qty) === 0) {
@@ -25,7 +29,18 @@ const applyOrderBookUpdates = (
     }
   }
 
-  return Array.from(map.entries());
+  // sort the entries according to price
+
+  return Array.from(map.entries()).sort(
+    ([a], [b]) => parseFloat(b) - parseFloat(a),
+  );
+
+  // return Array.from(map.entries()).sort(
+  //   ([a], [b]) =>
+  //     side === "bids"
+  //       ? parseFloat(b) - parseFloat(a) // descending for bids
+  //       : parseFloat(a) - parseFloat(b), // ascending for asks
+  // );
 };
 
 export function Depth({ market }: { market: string }) {
@@ -35,34 +50,51 @@ export function Depth({ market }: { market: string }) {
 
   useEffect(() => {
     const init = async () => {
+      console.log("depth data before: ", "nothing");
+
+      let depthData = await getDepth(market);
+      try {
+        const tickerData = await getTicker(market);
+        setPrice(tickerData.lastPrice);
+        console.log("ticker data : ", tickerData);
+      } catch (err) {
+        console.error(err);
+      }
+
+      console.log("depth data: ", depthData);
+
+      setBids(depthData.bids?.reverse());
+      setAsks(depthData.asks?.reverse());
+
+      SocketManager.getInstance().registerCallback(
+        "ticker",
+        (data: Partial<Ticker>) => {
+          setPrice((prevPrice) => data.lastPrice ?? prevPrice ?? "");
+        },
+        `${market}`,
+        "DepthTable",
+      );
+
       SocketManager.getInstance().registerCallback(
         "depth",
         (data: any) => {
           setBids((original) =>
-            applyOrderBookUpdates(original ?? [], data.bids),
+            applyOrderBookUpdates(original ?? [], data.bids, "bids"),
           );
           setAsks((original) =>
-            applyOrderBookUpdates(original ?? [], data.asks),
+            applyOrderBookUpdates(original ?? [], data.asks, "asks"),
           );
         },
         `${market}`,
+        "DepthTable",
       );
 
       SocketManager.getInstance().sendMessage({
         method: "SUBSCRIBE",
-        params: [`depth.${market}`],
+        params: [`depth@${market}`],
       });
 
-      let depthData = await getDepth(market);
-      const tickerData = await getTicker(market);
-
-      setBids(depthData.bids.reverse());
-      setAsks(depthData.asks);
-      setPrice(tickerData.lastPrice);
-
       console.log("bids are : ", depthData.bids);
-
-      console.log("ticker data : ", tickerData);
     };
 
     init();
@@ -70,9 +102,18 @@ export function Depth({ market }: { market: string }) {
     return () => {
       SocketManager.getInstance().sendMessage({
         method: "UNSUBSCRIBE",
-        params: [`depth.200ms.${market}`],
+        params: [`depth@${market}`],
       });
-      SocketManager.getInstance().deregisterCallback("depth", `${market}`);
+      SocketManager.getInstance().deregisterCallback(
+        "depth",
+        `${market}`,
+        "DepthTable",
+      );
+      SocketManager.getInstance().deregisterCallback(
+        "ticker",
+        `${market}`,
+        "DepthTable",
+      );
     };
   }, []);
 

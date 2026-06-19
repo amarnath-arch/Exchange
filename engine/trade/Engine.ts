@@ -4,11 +4,12 @@ import {
   CREATE_ORDER,
   GET_DEPTH,
   GET_OPEN_ORDERS,
+  GET_TICKER,
   ON_RAMP,
   type MessageFromApi,
 } from "../types/from";
 import { ORDER_UPDATE } from "../types/to";
-import { Orderbook, type Fill, type Order } from "./Orderbook";
+import { Orderbook, type Fill, type Order, type Ticker } from "./Orderbook";
 import { v4 as uuid } from "uuid";
 
 interface UserBalance {
@@ -24,8 +25,21 @@ export default class Engine {
   // uyserbalance
   private balances: Map<string, UserBalance>;
 
+  private currentCandles: Map<
+    string,
+    {
+      open: number;
+      high: number;
+      low: number;
+      close: number;
+      start: number;
+      end: number;
+    }
+  > = new Map();
+
   constructor() {
     this.balances = new Map<string, UserBalance>();
+    this.orderbooks = [new Orderbook([], [], "USDC", "SOL", 0)];
   }
 
   async process({
@@ -35,6 +49,7 @@ export default class Engine {
     message: MessageFromApi;
     clientId: string;
   }) {
+    console.log("message received");
     switch (message.type) {
       case CREATE_ORDER:
         try {
@@ -91,6 +106,7 @@ export default class Engine {
           }
 
           const openOrders = openOrderbook.getOpenOrders(message.data.userId);
+          console.log("open Orders: ", openOrders);
 
           RedisManager.getInstance().sendToApi(clientId, {
             type: "OPEN_ORDERS",
@@ -103,7 +119,17 @@ export default class Engine {
       case ON_RAMP:
         const userId = message.data.userId;
         const amount = Number(message.data.amount);
+        console.log("onRamping");
         this.onRamp(userId, amount, message.data.asset);
+        console.log("amountUpdated");
+        RedisManager.getInstance().sendToApi(clientId, {
+          type: "ON_RAMP",
+          payload: {
+            amount: amount,
+            userId: userId,
+            asset: message.data.asset,
+          },
+        });
         break;
       case GET_DEPTH:
         try {
@@ -123,6 +149,37 @@ export default class Engine {
             payload: {
               bids: [],
               asks: [],
+            },
+          });
+        }
+        break;
+      case GET_TICKER:
+        try {
+          const market = message.data.market;
+          const orderbook = this.orderbooks.find((o) => o.ticker() === market);
+          if (!orderbook) {
+            throw new Error("No orderbook found");
+          }
+          RedisManager.getInstance().sendToApi(clientId, {
+            type: "TICKER",
+            payload: orderbook.getTicker(),
+          });
+        } catch (e) {
+          console.log(e);
+          RedisManager.getInstance().sendToApi(clientId, {
+            type: "TICKER",
+            payload: {
+              firstPrice: "",
+              high: "",
+              lastPrice: "",
+              low: "",
+              priceChange: "",
+              priceChangePercent: "",
+              quoteVolume: "",
+              symbol: "",
+              trades: "",
+              volume: "",
+              updateTimestamp: 0,
             },
           });
         }
@@ -166,6 +223,9 @@ export default class Engine {
       timestamp: Date.now(),
     };
 
+    // getting the depth before order update
+    // const beforeUpdateDepth = orderbook.getDepth();
+
     // match the order
     const { executedQty, fills, deletedAsks, deletedBids } =
       orderbook.addOrder(order);
@@ -182,7 +242,12 @@ export default class Engine {
       deletedBids,
       deletedAsks,
     );
+
     this.publishWsTrades(fills, userId, market);
+
+    this.publishWsTickerUpdates(orderbook.getTicker(), market);
+
+    this.publishWsKlineUpdates(fills, market);
 
     const orderId = order.orderId;
 
@@ -277,15 +342,30 @@ export default class Engine {
       userBalance[quoteAsset].available -= total;
       userBalance[quoteAsset].locked += total;
     } else {
-      if ((userBalance[baseAsset]?.available ?? 0) < total) {
+      if ((userBalance[baseAsset]?.available ?? 0) < quantity) {
         throw new Error("Insufficient funds");
       }
 
       if (!userBalance[baseAsset]) {
         throw new Error(`No balance found for asset: ${quoteAsset}`);
       }
-      userBalance[baseAsset].available -= quantity * price;
-      userBalance[baseAsset].locked += quantity * price;
+      console.log(
+        "updating before : available : ",
+        userBalance[baseAsset].available,
+      );
+      console.log("updating before : locked : ", userBalance[baseAsset].locked);
+
+      userBalance[baseAsset].available -= quantity;
+      userBalance[baseAsset].locked += quantity;
+
+      console.log(
+        "updating balance : available : ",
+        userBalance[baseAsset].available,
+      );
+      console.log(
+        "updating balance : locked : ",
+        userBalance[baseAsset].locked,
+      );
     }
   }
 
@@ -313,6 +393,7 @@ export default class Engine {
     fills: Fill[],
     market: string,
   ) {
+    console.log("pushing to the db update db orders");
     RedisManager.getInstance().pushMessage({
       type: ORDER_UPDATE,
       data: {
@@ -363,6 +444,57 @@ export default class Engine {
       });
     });
   }
+
+  // private publishWsUpdates(
+  //   beforeUpdateDepth: {
+  //     asks: [number, number][];
+  //     bids: [number, number][];
+  //   },
+  //   afterUpdateDepth: {
+  //     asks: [number, number][];
+  //     bids: [number, number][];
+  //   },
+  //   market: string,
+  // ) {
+  //   const beforeDepth = this.convertOrderBook(beforeUpdateDepth);
+  //   const afterDepth = this.convertOrderBook(afterUpdateDepth);
+
+  //   const updatedBids: [string, string][] = [];
+  //   const updatedAsks: [string, string][] = [];
+  //   for (const [price, qty] of afterDepth.bids) {
+  //     const beforeQty = beforeDepth.bids.get(price);
+  //     if (!beforeQty || qty != beforeQty) {
+  //       updatedBids.push([price.toString(), qty.toString()]);
+  //     }
+  //   }
+
+  //   for (const [price, qty] of afterDepth.asks) {
+  //     if (qty != beforeDepth.asks.get(price)) {
+  //       updatedAsks.push([price.toString(), qty.toString()]);
+  //     }
+  //   }
+
+  //   RedisManager.getInstance().publishMessage(`Depth@${market}`, {
+  //     stream: `depth@${market}`,
+  //     data: {
+  //       e: "depth",
+  //       s: market,
+  //       a: updatedAsks,
+  //       b: updatedBids,
+  //     },
+  //   });
+  // }
+
+  // convertOrderBook(raw: {
+  //   bids: [number, number][];
+  //   asks: [number, number][];
+  // }) {
+  //   return {
+  //     bids: new Map<number, number>(raw.bids),
+  //     asks: new Map<number, number>(raw.asks),
+  //   };
+  // }
+
   private publishWsTrades(fills: Fill[], userId: string, market: string) {
     fills.forEach((fill) => {
       RedisManager.getInstance().publishMessage(`trade@${market}`, {
@@ -380,6 +512,94 @@ export default class Engine {
   }
 
   //// pub sub
+
+  private publishWsTickerUpdates(tickerData: Ticker, market: string) {
+    RedisManager.getInstance().publishMessage(`ticker@${market}`, {
+      stream: `ticker@${market}`,
+      data: {
+        c: tickerData.lastPrice,
+        h: tickerData.high,
+        l: tickerData.low,
+        v: tickerData.volume,
+        V: tickerData.quoteVolume,
+        s: market,
+        id: tickerData.updateTimestamp,
+        e: "ticker",
+      },
+    });
+  }
+
+  private publishWsKlineUpdates(fills: Fill[], market: string) {
+    if (fills.length === 0) return;
+
+    fills.forEach((fill) => {
+      const now = Date.now();
+      const intervalMs = 60 * 1000;
+      const start = Math.floor(now / intervalMs) * intervalMs;
+      const end = start + intervalMs;
+
+      const existing = this.currentCandles.get(market);
+      let isNewCandle = false;
+      let candle: {
+        open: number;
+        high: number;
+        low: number;
+        close: number;
+        start: number;
+        end: number;
+      };
+
+      if (!existing || existing.start !== start) {
+        candle = {
+          open: fill.price,
+          high: fill.price,
+          low: fill.price,
+          close: fill.price,
+          start,
+          end,
+        };
+        isNewCandle = true;
+      } else {
+        candle = {
+          ...existing,
+          high: Math.max(existing.high, fill.price),
+          low: Math.min(existing.low, fill.price),
+          close: fill.price,
+        };
+      }
+
+      this.currentCandles.set(market, candle);
+
+      RedisManager.getInstance().pushMessage({
+        type: "KLINE_UPDATE",
+        data: {
+          market,
+          price: fill.price.toString(),
+          quantity: fill.quantity.toString(),
+          quoteQuantity: (fill.price * fill.quantity).toString(),
+          start: start.toString(),
+          end: end.toString(),
+          timestamp: now,
+        },
+      });
+
+      // also publish to WebSocket for the live forming candle
+      RedisManager.getInstance().publishMessage(`kline@${market}`, {
+        stream: `kline@${market}`,
+        data: {
+          e: "kline",
+          s: market,
+          o: candle.open.toString(),
+          h: candle.high.toString(),
+          l: candle.low.toString(),
+          c: candle.close.toString(),
+          start: start.toString(),
+          end: end.toString(),
+          newCandleInitiated: isNewCandle,
+        },
+      });
+    });
+  }
 
   private publisWsDepthUpdates(
     fills: Fill[],
@@ -419,6 +639,7 @@ export default class Engine {
             ? [updatedBid].map((bid) => [bid[0].toString(), bid[1].toString()])
             : [],
           e: "depth",
+          s: market,
         },
       });
     }
@@ -447,6 +668,7 @@ export default class Engine {
             bids[1].toString(),
           ]),
           e: "depth",
+          s: market,
         },
       });
     }

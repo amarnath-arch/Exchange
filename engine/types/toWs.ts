@@ -4,6 +4,7 @@ export type DepthUpdateMessage = {
     b?: [string, string][];
     a?: [string, string][];
     e: "depth";
+    s: string;
   };
 };
 
@@ -33,7 +34,23 @@ export type TickerUpdateMessage = {
   };
 };
 
+export type KLineUpdateMessagte = {
+  stream: string;
+  data: {
+    e: "kline";
+    s: string;
+    o: string;
+    h: string;
+    l: string;
+    c: string;
+    start: string;
+    end: string;
+    newCandleInitiated: boolean;
+  };
+};
+
 export type WsMessage =
   | TickerUpdateMessage
   | DepthUpdateMessage
-  | TradeAddedMessage;
+  | TradeAddedMessage
+  | KLineUpdateMessagte;

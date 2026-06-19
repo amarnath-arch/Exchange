@@ -44,6 +44,23 @@ model Trade {
   timestamp    DateTime
 }
 
+model KLine {
+  id          String   @id @default(uuid())
+  symbol      String
+  open        String
+  close       String
+  high        String
+  low         String
+  volume      String
+  quoteVolume String
+  trades      String
+  start       DateTime
+  end         DateTime
+
+  @@unique([symbol, start])
+  @@index([symbol, start])
+}
+
 enum Side {
   Buy
   Sell

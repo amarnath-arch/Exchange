@@ -53,6 +53,10 @@ export class SubscriptionManager {
     if (this.subscriptionToUser.get(subscription)?.size == 1) {
       this.client.subscribe(subscription, (message: any) => {
         const parsedMessage = JSON.parse(message);
+        // console.log("message received : ", parsedMessage);
+        // console.log("message subscriptoin : ", subscription);
+        const user = UserManager.getInstance().getUser(userId);
+        // console.log("user is : ", user);
         UserManager.getInstance().getUser(userId)?.sendMessage(parsedMessage);
       });
     }

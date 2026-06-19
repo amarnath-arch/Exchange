@@ -24,6 +24,8 @@ export default class RedisManager {
   }
 
   async pushMessage(message: DbMessage) {
+    console.log("pushing the order update message");
+    console.log(message);
     await this.client.lPush("db_processor", JSON.stringify(message));
   }
 

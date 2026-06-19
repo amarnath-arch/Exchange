@@ -19,6 +19,7 @@ export class UserManager {
   public addUser(ws: WebSocket) {
     const userId = uuid();
     const user = new User(userId, ws);
+    this.users.set(userId, user);
     this.socketClose(ws, userId);
   }
 

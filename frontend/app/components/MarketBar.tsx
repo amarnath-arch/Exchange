@@ -31,20 +31,27 @@ export const MarketBar = ({ market }: { market: string }) => {
             symbol: data?.symbol ?? prevTicker?.symbol ?? "",
             trades: data?.trades ?? prevTicker?.trades ?? "",
             volume: data?.volume ?? prevTicker?.volume ?? "",
+            updateTimestamp:
+              data?.updateTimestamp ?? prevTicker?.updateTimestamp ?? 0,
           })),
         `${market}`,
+        "MarketBar",
       );
 
       SocketManager.getInstance().sendMessage({
         method: "SUBSCRIBE",
-        params: [`ticker.${market}`],
+        params: [`ticker@${market}`],
       });
     };
 
     init();
 
     return () => {
-      SocketManager.getInstance().deregisterCallback("ticker", `${market}`);
+      SocketManager.getInstance().deregisterCallback(
+        "ticker",
+        `${market}`,
+        "MarketBar",
+      );
       SocketManager.getInstance().sendMessage({
         method: "UNSUBSCRIBE",
         params: [`ticker.${market}`],

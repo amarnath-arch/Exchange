@@ -2,6 +2,7 @@ import type { Order } from "../trade/Orderbook";
 
 export const TRADE_ADDED = "TRADE_ADDED";
 export const ORDER_UPDATE = "ORDER_UPDATE";
+export const KLINE_UPDATE = "KLINE_UPDATE";
 
 export type DbMessage =
   | {
@@ -29,6 +30,18 @@ export type DbMessage =
         side?: "buy" | "sell";
         timestamp?: number;
         userId?: string;
+      };
+    }
+  | {
+      type: typeof KLINE_UPDATE;
+      data: {
+        market: string;
+        price: string;
+        quantity: string;
+        quoteQuantity: string;
+        start: string;
+        end: string;
+        timestamp: number;
       };
     };
 
@@ -62,5 +75,29 @@ export type MessageToApi =
       payload: {
         asks: [number, number][];
         bids: [number, number][];
+      };
+    }
+  | {
+      type: "TICKER";
+      payload: {
+        firstPrice: string;
+        high: string;
+        lastPrice: string;
+        low: string;
+        priceChange: string;
+        priceChangePercent: string;
+        quoteVolume: string;
+        symbol: string;
+        trades: string;
+        volume: string;
+        updateTimestamp: number;
+      };
+    }
+  | {
+      type: "ON_RAMP";
+      payload: {
+        amount: number;
+        userId: string;
+        asset: string;
       };
     };

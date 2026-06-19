@@ -42,7 +42,10 @@ orderRouter.get("/open", userAuth, async (req, res) => {
         market: req.query.market as string,
       },
     });
-    return res.json(response.payload);
+    return res.json({
+      type: "OPEN_ORDERS",
+      payload: response.payload,
+    });
   } catch (err) {
     console.error(err);
     return res.status(500).json({

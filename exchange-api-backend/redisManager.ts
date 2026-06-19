@@ -33,7 +33,7 @@ export default class RedisManager {
     return new Promise<MessageFromOrderbook>((resolve) => {
       (this.publisher.subscribe(id, (message: any) => {
         this.publisher.unsubscribe(id);
-        resolve(message);
+        resolve(JSON.parse(message));
       }),
         this.client.lPush(
           "messages",

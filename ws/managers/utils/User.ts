@@ -18,6 +18,8 @@ export class User {
     this.socket.on("message", (message: string) => {
       const parsedMessage: IncomingMessage = JSON.parse(message);
 
+      console.log("parsed Message", parsedMessage);
+
       if (parsedMessage.method == "SUBSCRIBE") {
         parsedMessage.params.forEach((subscription) =>
           SubscriptionManager.getInstance().subscribe(this.id, subscription),
@@ -31,6 +33,8 @@ export class User {
   }
 
   public sendMessage(message: OutgoingMessage) {
+    // console.log("sending message to user: ", message);
+    // console.log("user socket is : ", this.socket);
     this.socket.send(JSON.stringify(message));
   }
 }

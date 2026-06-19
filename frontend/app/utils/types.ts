@@ -9,6 +9,7 @@ export interface Ticker {
   symbol: string;
   trades: string;
   volume: string;
+  updateTimestamp: number;
 }
 
 export interface KLine {

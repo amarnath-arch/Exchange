@@ -5,7 +5,10 @@
   "private": true,
   "scripts": {
     "start": "bun index.ts",
-    "dev": "bun index.ts"
+    "dev": "bun index.ts",
+    "migrate:auth": "PRISMA_TARGET=auth bunx prisma migrate dev",
+    "generate:auth": "PRISMA_TARGET=auth bunx prisma generate",
+    "generate:market": "PRISMA_TARGET=market bunx prisma generate"
   },
   "devDependencies": {
     "@types/bun": "latest",

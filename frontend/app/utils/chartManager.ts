@@ -8,19 +8,19 @@ import {
 
 export class ChartManager {
   private candleSeries: ISeriesApi<"Candlestick">;
-  private lastUpdateTime: number = 0;
+  // private lastUpdateTime: number = 0;
   private chart: any;
-  private currentBar: {
-    open: number | null;
-    high: number | null;
-    low: number | null;
-    close: number | null;
-  } = {
-    open: null,
-    high: null,
-    low: null,
-    close: null,
-  };
+  // private currentBar: {
+  //   open: number | null;
+  //   high: number | null;
+  //   low: number | null;
+  //   close: number | null;
+  // } = {
+  //   open: null,
+  //   high: null,
+  //   low: null,
+  //   close: null,
+  // };
 
   constructor(
     ref: any,
@@ -61,28 +61,35 @@ export class ChartManager {
     this.candleSeries = chart.addCandlestickSeries();
 
     this.candleSeries.setData(
-      initialData.map((data) => ({
-        ...data,
-        time: (data.timestamp / 1000) as UTCTimestamp,
+      initialData.map(({ timestamp, ...rest }) => ({
+        ...rest,
+        time: (timestamp.getTime() / 1000) as UTCTimestamp,
       })),
     );
   }
   public update(updatedPrice: any) {
-    if (!this.lastUpdateTime) {
-      this.lastUpdateTime = new Date().getTime();
-    }
+    // if (!this.lastUpdateTime) {
+    //   this.lastUpdateTime = new Date().getTime();
+    // }
+
+    console.log(
+      "chart update time:",
+      updatedPrice.time,
+      "candle:",
+      updatedPrice,
+    );
 
     this.candleSeries.update({
-      time: (this.lastUpdateTime / 1000) as UTCTimestamp,
+      time: updatedPrice.time as UTCTimestamp,
       close: updatedPrice.close,
       low: updatedPrice.low,
       high: updatedPrice.high,
       open: updatedPrice.open,
     });
 
-    if (updatedPrice.newCandleInitiated) {
-      this.lastUpdateTime = updatedPrice.time;
-    }
+    // if (updatedPrice.newCandleInitiated) {
+    //   this.lastUpdateTime = updatedPrice.time;
+    // }
   }
   public destroy() {
     this.chart.remove();

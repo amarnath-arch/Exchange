@@ -1,6 +1,10 @@
+export const KLINE_UPDATE = "KLINE_UPDATE";
+export const TRADE_ADDED = "TRADE_ADDED";
+export const ORDER_UPDATE = "ORDER_UPDATE";
+
 export type DbMessage =
   | {
-      type: "TRADE_ADDED";
+      type: typeof TRADE_ADDED;
       data: {
         id: string;
         isBuyerMaker: boolean;
@@ -14,7 +18,7 @@ export type DbMessage =
       };
     }
   | {
-      type: "ORDER_UPDATE";
+      type: typeof ORDER_UPDATE;
       data: {
         orderId: string;
         executedQty: number;
@@ -24,5 +28,17 @@ export type DbMessage =
         side?: "buy" | "sell";
         timestamp?: number;
         userId?: string;
+      };
+    }
+  | {
+      type: typeof KLINE_UPDATE;
+      data: {
+        market: string;
+        price: string;
+        quantity: string;
+        quoteQuantity: string;
+        start: string;
+        end: string;
+        timestamp: number;
       };
     };
