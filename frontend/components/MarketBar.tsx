@@ -1,9 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
-import { type Ticker } from "../utils/types";
+import { type Ticker } from "../app/utils/types";
 import TickerComponent from "./Ticker";
-import { getTicker } from "../utils/httpClient";
-import SocketManager from "../utils/Socket";
+import { getTicker } from "../app/utils/httpClient";
+import SocketManager from "../app/utils/Socket";
 // import { type Ticker } from "../utils/types";
 // import { getTicker } from "../utils/httpClient";
 // import { SignalingManager } from "../utils/SignalingManager";

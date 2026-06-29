@@ -7,7 +7,7 @@ const orderRouter = Router();
 
 orderRouter.post("/", userAuth, async (req, res) => {
   try {
-    const { market, price, quantity, side } = req.body;
+    const { market, price, quantity, side, type } = req.body;
     // push to the queue
     const response = await RedisManager.getInstance().sendAndAwait({
       type: CREATE_ORDER,
@@ -17,6 +17,7 @@ orderRouter.post("/", userAuth, async (req, res) => {
         quantity,
         side,
         userId: req.userId as string,
+        type,
       },
     });
 
@@ -34,6 +35,7 @@ orderRouter.post("/", userAuth, async (req, res) => {
 });
 
 orderRouter.get("/open", userAuth, async (req, res) => {
+  console.log("getting open orders");
   try {
     const response = await RedisManager.getInstance().sendAndAwait({
       type: GET_OPEN_ORDERS,

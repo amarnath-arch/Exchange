@@ -27,6 +27,7 @@ export type MessageToEngine =
         quantity: string;
         side: "buy" | "sell";
         userId: string;
+        type: "market" | "limit";
       };
     }
   | {

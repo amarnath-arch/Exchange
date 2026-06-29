@@ -15,6 +15,7 @@ export type MessageFromApi =
         market: string;
         side: "buy" | "sell";
         userId: string;
+        type: "market" | "limit";
       };
     }
   | {

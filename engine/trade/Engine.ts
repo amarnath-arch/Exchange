@@ -59,6 +59,7 @@ export default class Engine {
             message.data.quantity,
             message.data.userId,
             message.data.side,
+            message.data.type,
           );
 
           let sendingFills = fills.map((fill) => {
@@ -193,6 +194,7 @@ export default class Engine {
     quantity: string,
     userId: string,
     side: "buy" | "sell",
+    orderType: "market" | "limit",
   ) {
     const orderbook = this.orderbooks.find((o) => o.ticker() == market);
     if (!orderbook) {
@@ -220,7 +222,9 @@ export default class Engine {
       filled: 0,
       userId: userId,
       orderId: uuid(),
+      market: market,
       timestamp: Date.now(),
+      type: orderType,
     };
 
     // getting the depth before order update

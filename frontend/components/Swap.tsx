@@ -1,10 +1,73 @@
 "use client";
-import { useState } from "react";
+import { createOrder, getAssets, getBalances } from "@/app/utils/httpClient";
+import { useAuth } from "@/context/useAuth";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import SwapModal from "./SwapModal";
+
+interface AssetBalance {
+  assetName: string;
+  balance: number;
+}
 
 export function SwapUI({ market }: { market: string }) {
   const [amount, setAmount] = useState("");
-  const [activeTab, setActiveTab] = useState("buy");
-  const [type, setType] = useState("limit");
+  const [activeTab, setActiveTab] = useState<"buy" | "sell">("buy");
+  const [type, setType] = useState<"market" | "limit">("limit");
+  const [assetBalances, setAssetBalances] = useState<AssetBalance[]>([]);
+  const [confirmingTransactionModal, setConfirmingTransactionModal] =
+    useState<boolean>(false);
+
+  const qtyRef = useRef<HTMLInputElement>(null);
+  const priceRef = useRef<HTMLInputElement>(null);
+
+  const [globalBaseAsset, globalQuoteAsset] = market.split("_");
+
+  const { isLoggedIn } = useAuth();
+  const router = useRouter();
+
+  async function startTransaction() {
+    try {
+      if (!qtyRef.current || !priceRef.current) {
+        alert("Enter price && qty");
+        return;
+      }
+
+      if (Number(qtyRef.current.value) > 0) {
+      }
+      await createOrder(
+        market,
+        qtyRef.current?.value,
+        priceRef.current.value,
+        activeTab,
+        type,
+      );
+
+      setConfirmingTransactionModal(false);
+    } catch (err) {
+      console.error(err);
+      setConfirmingTransactionModal(false);
+    }
+  }
+
+  useEffect(() => {
+    async function getBalance() {
+      try {
+        const foundAssetBalances = await getBalances();
+        console.log("asset balances found to be : ", foundAssetBalances);
+        setAssetBalances(foundAssetBalances);
+        // setAssets(foundAssets);
+        // setAssetBalances(foundAssetBalances);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        // setAssetsLoading(false);
+      }
+    }
+    if (isLoggedIn) {
+      getBalance();
+    }
+  }, [isLoggedIn]);
 
   return (
     <div className=" bg-[#14151b] shadow-xl p-4 rounded-xl">
@@ -17,7 +80,7 @@ export function SwapUI({ market }: { market: string }) {
           <div className="px-3">
             <div className="flex flex-row flex-0 gap-5 undefined">
               <LimitButton type={type} setType={setType} />
-              <MarketButton type={type} setType={setType} />
+              {/* <MarketButton type={type} setType={setType} /> */}
             </div>
           </div>
           <div className="flex flex-col px-3">
@@ -27,9 +90,18 @@ export function SwapUI({ market }: { market: string }) {
                   <p className="text-xs font-normal text-baseTextMedEmphasis">
                     Available Balance
                   </p>
-                  <p className="font-medium text-xs text-baseTextHighEmphasis">
-                    36.94 USDC
-                  </p>
+                  <div>
+                    {market.split("_").map((asset) => {
+                      return (
+                        <p className="font-medium text-xs text-baseTextHighEmphasis">
+                          {`${asset} : ${
+                            assetBalances.find((x) => x.assetName == asset)
+                              ?.balance
+                          }`}
+                        </p>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
               <div className="flex flex-col gap-2">
@@ -42,11 +114,15 @@ export function SwapUI({ market }: { market: string }) {
                     placeholder="0"
                     className="h-12 rounded-lg  border-solid border-baseBorderLight bg-base-background-l2 pr-12 text-right text-2xl leading-9 text-[$text] placeholder-baseTextMedEmphasis ring-0 transition focus:border-accentBlue focus:ring-0"
                     type="text"
-                    value="134.38"
+                    ref={priceRef}
+                    // value="134.38"
                   />
                   <div className="flex flex-row absolute right-1 top-1 p-2">
                     <div className="relative">
-                      <img src="/usdc.webp" className="w-6 h-6" />
+                      <img
+                        src={`/assets/${globalQuoteAsset}.png`}
+                        className="w-6 h-6"
+                      />
                     </div>
                   </div>
                 </div>
@@ -62,19 +138,23 @@ export function SwapUI({ market }: { market: string }) {
                   placeholder="0"
                   className="h-12 rounded-lg  border-solid border-baseBorderLight bg-base-background-l2 pr-12 text-right text-2xl leading-9 text-[$text] placeholder-baseTextMedEmphasis ring-0 transition focus:border-accentBlue focus:ring-0"
                   type="text"
-                  value="123"
+                  ref={qtyRef}
                 />
                 <div className="flex flex-row absolute right-1 top-1 p-2">
                   <div className="relative">
-                    <img src="/sol.webp" className="w-6 h-6" />
+                    <img
+                      src={`/assets/${globalBaseAsset}.png`}
+                      className="w-6 h-6"
+                    />
                   </div>
                 </div>
               </div>
-              <div className="flex justify-end flex-row">
+              {/* <div className="flex justify-end flex-row">
                 <p className="font-medium pr-2 text-xs text-baseTextMedEmphasis">
                   ≈ 0.00 USDC
                 </p>
-              </div>
+              </div> */}
+              {/* TODO: This section is incomplete
               <div className="flex justify-center flex-row mt-2 gap-3">
                 <div className="flex items-center justify-center flex-row rounded-full px-[16px] py-[6px] text-xs cursor-pointer bg-baseBackgroundL2 hover:bg-baseBackgroundL3">
                   25%
@@ -88,16 +168,65 @@ export function SwapUI({ market }: { market: string }) {
                 <div className="flex items-center justify-center flex-row rounded-full px-[16px] py-[6px] text-xs cursor-pointer bg-baseBackgroundL2 hover:bg-baseBackgroundL3">
                   Max
                 </div>
-              </div>
+              </div> */}
             </div>
             <button
               type="button"
               className={`font-semibold  focus:ring-blue-200 focus:none focus:outline-none text-center h-12 rounded-xl text-base px-4 py-2 my-4 ${activeTab == "buy" ? "bg-green-primary-button-background" : "bg-red-500"} hover:scale-103 cursor-pointer transition-all duration-200 ease-in-out  text-greenPrimaryButtonText active:scale-98`}
+              // onClick={() => setConfirmingTransactionModal(true)}
               data-rac=""
+              onClick={() => {
+                if (!isLoggedIn) {
+                  router.push("/auth?mode=signin");
+                }
+
+                if (qtyRef.current && priceRef.current) {
+                  if (
+                    Number(qtyRef.current.value) > 0 &&
+                    Number(qtyRef.current.value) > 0
+                  ) {
+                    const [baseAsset, quoteAsset] = market.split("_");
+
+                    const quoteBalance = assetBalances.find(
+                      (x) => x.assetName == quoteAsset,
+                    )?.balance;
+
+                    const baseBalance = assetBalances.find(
+                      (x) => x.assetName == baseAsset,
+                    )?.balance;
+
+                    if (activeTab == "buy") {
+                      if (quoteBalance == undefined) {
+                        return;
+                      }
+                      if (
+                        quoteBalance <
+                        Number(priceRef.current?.value) *
+                          Number(qtyRef.current.value)
+                      ) {
+                        alert(`Insufficient ${quoteAsset} Balance`);
+                        return;
+                      }
+                    } else {
+                      if (baseBalance == undefined) {
+                        return;
+                      }
+
+                      if (baseBalance < Number(qtyRef.current.value)) {
+                        alert(`Insufficient ${baseAsset} Balance`);
+                        return;
+                      }
+                    }
+
+                    setConfirmingTransactionModal(true);
+                  }
+                }
+              }}
             >
-              {activeTab == "buy" ? "Buy" : "Sell"}
+              {isLoggedIn ? (activeTab == "buy" ? "Buy" : "Sell") : "SignIn"}
             </button>
-            <div className="flex justify-between flex-row mt-1">
+            {/* TODO: This section is incomplete */}
+            {/* <div className="flex justify-between flex-row mt-1">
               <div className="flex flex-row gap-2">
                 <div className="flex items-center">
                   <input
@@ -118,10 +247,17 @@ export function SwapUI({ market }: { market: string }) {
                   <label className="ml-2 text-xs">IOC</label>
                 </div>
               </div>
-            </div>
+            </div> */}
           </div>
         </div>
       </div>
+      <SwapModal
+        modalOpen={confirmingTransactionModal}
+        modalClose={() => setConfirmingTransactionModal(false)}
+        onClick={async () => {
+          await startTransaction();
+        }}
+      />
     </div>
   );
 }

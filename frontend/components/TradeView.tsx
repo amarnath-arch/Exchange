@@ -1,9 +1,9 @@
 "use client";
 import { useEffect, useRef } from "react";
-import { ChartManager } from "../utils/chartManager";
-import { KLine } from "../utils/types";
-import { getKlines } from "../utils/httpClient";
-import SocketManager from "../utils/Socket";
+import { ChartManager } from "../app/utils/chartManager";
+import { KLine } from "../app/utils/types";
+import { getKlines } from "../app/utils/httpClient";
+import SocketManager from "../app/utils/Socket";
 
 export function TradeView({ market }: { market: string }) {
   const chartRef = useRef<HTMLDivElement>(null);
@@ -16,7 +16,7 @@ export function TradeView({ market }: { market: string }) {
         klineData = await getKlines(
           market,
           "1h",
-          Math.floor(new Date().getTime() - 1000 * 60 * 60 * 24 * 7),
+          Math.floor(new Date().getTime() - 1000 * 60 * 60 * 24 * 30),
           Math.floor(new Date().getTime()),
         );
       } catch (e) {}
@@ -53,42 +53,42 @@ export function TradeView({ market }: { market: string }) {
         //@ts-ignore
         chartManagerRef.current = chartManager;
 
-        SocketManager.getInstance().registerCallback(
-          "kline",
-          (data: any) => {
-            console.log("updating the kline chart");
-            chartManagerRef.current?.update({
-              open: parseFloat(data.o),
-              high: parseFloat(data.h),
-              low: parseFloat(data.l),
-              close: parseFloat(data.c),
-              newCandleInitiated: data.newCandleInitiated ?? false,
-              time: Number(data.end) / 1000,
-            });
-          },
-          `${market}`,
-          "TradeView",
-        );
+        // SocketManager.getInstance().registerCallback(
+        //   "kline",
+        //   (data: any) => {
+        //     console.log("updating the kline chart");
+        //     chartManagerRef.current?.update({
+        //       open: parseFloat(data.o),
+        //       high: parseFloat(data.h),
+        //       low: parseFloat(data.l),
+        //       close: parseFloat(data.c),
+        //       newCandleInitiated: data.newCandleInitiated ?? false,
+        //       time: Number(data.end) / 1000,
+        //     });
+        //   },
+        //   `${market}`,
+        //   "TradeView",
+        // );
 
-        SocketManager.getInstance().sendMessage({
-          method: "SUBSCRIBE",
-          params: [`kline@${market}`],
-        });
+        // SocketManager.getInstance().sendMessage({
+        //   method: "SUBSCRIBE",
+        //   params: [`kline@${market}`],
+        // });
       }
     };
     init();
 
-    return () => {
-      SocketManager.getInstance().sendMessage({
-        method: "UNSUBSCRIBE",
-        params: [`kline@${market}`],
-      });
-      SocketManager.getInstance().deregisterCallback(
-        "kline",
-        `${market}`,
-        "TradeView",
-      );
-    };
+    // return () => {
+    //   SocketManager.getInstance().sendMessage({
+    //     method: "UNSUBSCRIBE",
+    //     params: [`kline@${market}`],
+    //   });
+    //   SocketManager.getInstance().deregisterCallback(
+    //     "kline",
+    //     `${market}`,
+    //     "TradeView",
+    //   );
+    // };
   }, [market, chartRef]);
 
   return (

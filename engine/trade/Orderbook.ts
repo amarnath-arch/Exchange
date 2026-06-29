@@ -6,6 +6,8 @@ export interface Order {
   userId: string;
   orderId: string;
   timestamp: number;
+  market: string;
+  type: "market" | "limit";
 }
 
 export interface Fill {

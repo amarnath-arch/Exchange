@@ -6,7 +6,7 @@ import {
   getKlines,
   getTicker,
   getTrades,
-} from "../../utils/httpClient";
+} from "../../app/utils/httpClient";
 import { BidTable } from "./BidTable";
 import { AskTable } from "./AskTable";
 import SocketManager from "@/app/utils/Socket";
