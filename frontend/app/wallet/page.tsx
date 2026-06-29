@@ -6,6 +6,7 @@ import axios from "axios";
 import { getAssets, getBalances, onRamp } from "../utils/httpClient";
 import { useAuth } from "@/context/useAuth";
 import { useRouter } from "next/navigation";
+import Toast from "@/components/Toast";
 
 const ASSETS = [
   {
@@ -46,6 +47,10 @@ export default function WalletPage() {
   const [assetBalances, setAssetBalances] = useState<AssetBalances[]>([]);
   const [network, setNetwork] = useState(asset.networks[0]);
   const [assetsLoading, setAssetsLoading] = useState<boolean>(false);
+  const [toast, setToast] = useState<{
+    message: string;
+    type: "success" | "error";
+  } | null>(null);
 
   const onRampInputRef = useRef<HTMLInputElement>(null);
   const onRampSelectorRef = useRef<HTMLSelectElement>(null);
@@ -53,27 +58,48 @@ export default function WalletPage() {
   const router = useRouter();
 
   const { isLoggedIn } = useAuth();
+  const [transactionDone, setTransactionDone] = useState<boolean>(false);
+
+  async function init() {
+    try {
+      setAssetsLoading(true);
+      const foundAssets = await getAssets();
+      const foundAssetBalances = await getBalances();
+      console.log("assets found are : ", foundAssets);
+      setAssets(foundAssets);
+      setAssetBalances(foundAssetBalances);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setAssetsLoading(false);
+    }
+  }
 
   useEffect(() => {
-    async function init() {
-      try {
-        setAssetsLoading(true);
-        const foundAssets = await getAssets();
-        const foundAssetBalances = await getBalances();
-        console.log("assets found are : ", foundAssets);
-        setAssets(foundAssets);
-        setAssetBalances(foundAssetBalances);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setAssetsLoading(false);
-      }
-    }
     init();
   }, []);
 
+  useEffect(() => {
+    if (isLoggedIn && transactionDone) {
+      init();
+    }
+  }, [transactionDone]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 4000);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
   return (
     <div className="min-h-screen">
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
       <main className="mx-auto max-w-[1200px] px-4 py-10 lg:px-6">
         {/* Header */}
         <div className="mb-8">
@@ -125,7 +151,7 @@ export default function WalletPage() {
               <div className="w-48">
                 {isLoggedIn ? (
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       if (
                         !onRampInputRef.current ||
                         !onRampSelectorRef.current
@@ -143,15 +169,35 @@ export default function WalletPage() {
                       }
 
                       try {
-                        onRamp(
+                        setTransactionDone(false);
+                        const res = await onRamp(
                           onRampSelectorRef.current.value,
                           onRampInputRef.current.value,
                         );
+
+                        if (res.message == "On ramp succesful") {
+                          setTransactionDone(true);
+                          setToast({
+                            message: `${res.message}`,
+                            type: "success",
+                          });
+                        } else {
+                          setToast({
+                            message: `${res.error}`,
+                            type: "error",
+                          });
+                        }
                       } catch (err) {
                         console.error(err);
+                        setToast({
+                          message: `${err}`,
+                          type: "error",
+                        });
+                      } finally {
+                        setTransactionDone(true);
                       }
                     }}
-                    className="btn-primary text-sm h-12 w-full"
+                    className="btn-primary text-sm h-12 w-full cursor-pointer"
                   >
                     ON-Ramp
                   </button>

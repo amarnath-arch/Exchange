@@ -4,6 +4,7 @@ import { useAuth } from "@/context/useAuth";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import SwapModal from "./SwapModal";
+import Toast from "./Toast";
 
 interface AssetBalance {
   assetName: string;
@@ -17,6 +18,14 @@ export function SwapUI({ market }: { market: string }) {
   const [assetBalances, setAssetBalances] = useState<AssetBalance[]>([]);
   const [confirmingTransactionModal, setConfirmingTransactionModal] =
     useState<boolean>(false);
+  const [transactionState, setTransactionState] = useState<
+    "open" | "pending" | "completed" | "error"
+  >("open");
+
+  const [toast, setToast] = useState<{
+    message: string;
+    type: "success" | "error";
+  } | null>(null);
 
   const qtyRef = useRef<HTMLInputElement>(null);
   const priceRef = useRef<HTMLInputElement>(null);
@@ -28,13 +37,13 @@ export function SwapUI({ market }: { market: string }) {
 
   async function startTransaction() {
     try {
+      setTransactionState("pending");
       if (!qtyRef.current || !priceRef.current) {
         alert("Enter price && qty");
+        setTransactionState("open");
         return;
       }
 
-      if (Number(qtyRef.current.value) > 0) {
-      }
       await createOrder(
         market,
         qtyRef.current?.value,
@@ -43,34 +52,69 @@ export function SwapUI({ market }: { market: string }) {
         type,
       );
 
+      qtyRef.current.value = "";
+      priceRef.current.value = "";
+
       setConfirmingTransactionModal(false);
+      setTransactionState("completed");
+
+      setToast({
+        message: `${activeTab === "buy" ? "Buy" : "Sell"} order placed successfully`,
+        type: "success",
+      });
     } catch (err) {
       console.error(err);
       setConfirmingTransactionModal(false);
+      setTransactionState("error");
+      setToast({ message: "Order failed. Please try again.", type: "error" });
+    }
+  }
+
+  async function getBalance() {
+    try {
+      const foundAssetBalances = await getBalances();
+      console.log("asset balances found to be : ", foundAssetBalances);
+      setAssetBalances(foundAssetBalances);
+      // setAssets(foundAssets);
+      // setAssetBalances(foundAssetBalances);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      // setAssetsLoading(false);
     }
   }
 
   useEffect(() => {
-    async function getBalance() {
-      try {
-        const foundAssetBalances = await getBalances();
-        console.log("asset balances found to be : ", foundAssetBalances);
-        setAssetBalances(foundAssetBalances);
-        // setAssets(foundAssets);
-        // setAssetBalances(foundAssetBalances);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        // setAssetsLoading(false);
-      }
-    }
     if (isLoggedIn) {
       getBalance();
     }
   }, [isLoggedIn]);
 
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 4000);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
+  useEffect(() => {
+    if (transactionState !== "completed") return;
+    getBalance();
+    const timer = setTimeout(() => {
+      setConfirmingTransactionModal(false);
+      setTransactionState("open");
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [transactionState]);
+
   return (
     <div className=" bg-[#14151b] shadow-xl p-4 rounded-xl">
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
       <div className="flex flex-col">
         <div className="flex flex-row h-[60px]">
           <BuyButton activeTab={activeTab} setActiveTab={setActiveTab} />
@@ -178,6 +222,7 @@ export function SwapUI({ market }: { market: string }) {
               onClick={() => {
                 if (!isLoggedIn) {
                   router.push("/auth?mode=signin");
+                  return;
                 }
 
                 if (qtyRef.current && priceRef.current) {
@@ -217,7 +262,7 @@ export function SwapUI({ market }: { market: string }) {
                         return;
                       }
                     }
-
+                    setTransactionState("open");
                     setConfirmingTransactionModal(true);
                   }
                 }
@@ -253,10 +298,15 @@ export function SwapUI({ market }: { market: string }) {
       </div>
       <SwapModal
         modalOpen={confirmingTransactionModal}
-        modalClose={() => setConfirmingTransactionModal(false)}
+        modalClose={() => {
+          setConfirmingTransactionModal(false);
+          setTransactionState("open");
+        }}
         onClick={async () => {
           await startTransaction();
         }}
+        transactionState={transactionState}
+        side={activeTab}
       />
     </div>
   );

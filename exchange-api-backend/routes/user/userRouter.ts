@@ -71,6 +71,15 @@ userRouter.post("/sign-in", async (req, res) => {
     }
     // sign the jwt token
 
+    // compare the password
+    const matchedPassword = await bcrypt.compare(password, foundUser.password);
+
+    if (!matchedPassword) {
+      return res.status(403).json({
+        error: "Incorrect Credentials",
+      });
+    }
+
     const token = jwt.sign(
       {
         id: foundUser.id,

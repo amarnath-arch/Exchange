@@ -15,11 +15,17 @@ onRampRouter.post("/", userAuth, async (req, res) => {
 
     const txnId = uuid();
 
+    console.log("here I can get");
+
     const assetExist = await prisma.asset.findFirst({
       where: {
         name: asset,
       },
     });
+
+    console.log("assetExists");
+    console.log(asset);
+    console.log(assetExist);
 
     if (!assetExist) {
       return res.status(411).json({
@@ -34,6 +40,8 @@ onRampRouter.post("/", userAuth, async (req, res) => {
       },
     });
 
+    console.log(existing);
+
     if (existing) {
       await prisma.balance.update({
         where: {
@@ -43,17 +51,27 @@ onRampRouter.post("/", userAuth, async (req, res) => {
           },
         },
         data: {
-          amount: existing.amount + amount,
+          amount: existing.amount + Number(amount),
         },
       });
     } else {
+      console.log("So I am somehow getting here");
+      console.log(req.userId);
       await prisma.balance.create({
         data: {
           userId: req.userId!,
-          amount: amount,
+          amount: Number(amount),
           assetId: assetExist.id,
         },
       });
+      // await prisma.balance.create({
+      //   data: {
+      //     userId: req.userId!,
+      //     amount: amount,
+      //     assetId: assetExist.id,
+      //   },
+      // });
+      console.log("I can't get here");
     }
 
     const response = await RedisManager.getInstance().sendAndAwait({
@@ -74,6 +92,7 @@ onRampRouter.post("/", userAuth, async (req, res) => {
       payload: response.payload,
     });
   } catch (err) {
+    console.error(err);
     return res.status(500).json({
       error: err,
     });

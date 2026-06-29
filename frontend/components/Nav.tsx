@@ -3,11 +3,17 @@
 import { useAuth } from "@/context/useAuth";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import Toast from "./Toast";
+import { useEffect, useState } from "react";
 
 export function Nav() {
   const pathname = usePathname();
   const { isLoggedIn, logOut } = useAuth();
   const router = useRouter();
+  const [toast, setToast] = useState<{
+    message: string;
+    type: "success" | "error";
+  } | null>(null);
 
   const links = [
     { to: "/markets", label: "Markets" },
@@ -15,8 +21,21 @@ export function Nav() {
     { to: "/wallet", label: "Wallet" },
   ];
 
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 4000);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-xl">
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
       <div className="mx-auto flex h-14 max-w-[1400px] items-center justify-between px-5">
         <div className="flex items-center gap-8">
           <Link href="/" className="flex items-center gap-2">
@@ -61,6 +80,10 @@ export function Nav() {
               className="btn-ghost text-sm bg-primary text-black font-semibold"
               onClick={() => {
                 logOut();
+                setToast({
+                  message: `LoggedOut Successfully`,
+                  type: "success",
+                });
                 router.push("/");
               }}
             >

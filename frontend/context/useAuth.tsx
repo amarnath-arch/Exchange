@@ -35,11 +35,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       let res;
       if (mode == "signup") {
         res = await signUpUser(email, password);
+        console.log("signinuser ", res);
       } else {
         res = await signInUser(email, password);
+        console.log("signinuser ", res);
       }
     } catch (err) {
       console.error(err);
+      throw new Error(err instanceof Error ? err.message : String(err));
+      return;
     }
 
     const token = localStorage.getItem("token");

@@ -81,6 +81,12 @@ export async function signInUser(email: string, password: string) {
       password: password,
     });
 
+    console.log("logging response for signin", response);
+    if (response.data.error) {
+      throw new Error(response.data.error);
+      return;
+    }
+
     const token = response.data.token;
 
     if (!token) {
@@ -88,8 +94,10 @@ export async function signInUser(email: string, password: string) {
     }
 
     localStorage.setItem("token", token);
-  } catch (err) {
+  } catch (err: any) {
     console.error(err);
+    console.log("error I got from signin is : ", err.response?.data);
+    throw new Error(err.response?.data.error);
   }
 }
 
@@ -107,8 +115,9 @@ export async function signUpUser(email: string, password: string) {
     }
 
     localStorage.setItem("token", token);
-  } catch (err) {
+  } catch (err: any) {
     console.error(err);
+    throw new Error(err.response?.data.error);
   }
 }
 
@@ -155,4 +164,6 @@ export async function onRamp(asset: string, amount: string) {
       },
     },
   );
+
+  return res.data;
 }

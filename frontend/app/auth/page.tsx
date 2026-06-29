@@ -5,10 +5,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { signInUser } from "../utils/httpClient";
 import { useAuth } from "@/context/useAuth";
+import Toast from "@/components/Toast";
 
 export default function AuthPage() {
   const router = useRouter();
-  const { logIn } = useAuth();
+  const { logIn, isLoggedIn } = useAuth();
   const searchParams = useSearchParams();
   const emailRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
@@ -16,14 +17,35 @@ export default function AuthPage() {
   const [mode, setMode] = useState<"signin" | "signup">(
     initialMode ?? "signin",
   );
+  const [toast, setToast] = useState<{
+    message: string;
+    type: "success" | "error";
+  } | null>(null);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 4000);
+    return () => clearTimeout(timer);
+  }, [toast]);
 
   useEffect(() => {
     if (initialMode) setMode(initialMode);
   }, [initialMode]);
 
+  if (isLoggedIn) {
+    router.push("/markets");
+  }
+
   return (
     <div className="grid min-h-screen lg:grid-cols-[1fr_1.1fr]">
       {/* Brand panel */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
       <aside className="relative hidden overflow-hidden border-r border-border lg:block">
         <div
           aria-hidden
@@ -105,8 +127,26 @@ export default function AuthPage() {
                 return;
               }
 
-              logIn(mode, emailRef.current.value, passwordRef.current.value);
-              router.push("/markets");
+              try {
+                await logIn(
+                  mode,
+                  emailRef.current.value,
+                  passwordRef.current.value,
+                );
+                setToast({
+                  type: "success",
+                  message: `${mode} Successful`,
+                });
+                if (localStorage.getItem("token")) {
+                  router.push("/markets");
+                }
+              } catch (err) {
+                console.error(err);
+                setToast({
+                  type: "error",
+                  message: `${err}`,
+                });
+              }
             }}
           >
             <Field
